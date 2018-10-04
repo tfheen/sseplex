@@ -1,0 +1,16 @@
+[package]
+name = "sseplex"
+version = "0.1.0"
+authors = ["Your Name"]
+edition = "2018"
+
+[dependencies]
+env_logger = "*"
+futures = "0.1.24"
+
+actix = "0.7"
+actix-web = "0.7"
+bytes = "0.4.10"
+tokio-timer = "0.2"
+tokio = "0.1.11"
+uuid = { version = "0.7", features = ["v4"] }
