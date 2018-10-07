@@ -2,7 +2,6 @@
 name = "sseplex"
 version = "0.1.0"
 authors = ["Your Name"]
-edition = "2018"
 
 [dependencies]
 env_logger = "*"
