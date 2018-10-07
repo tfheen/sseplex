@@ -5,6 +5,7 @@ use actix_web::{http, server, middleware, App, HttpResponse, HttpRequest, HttpCo
 use actix_web::http::{StatusCode};
 use actix::prelude::*;
 
+extern crate env_logger;
 mod eventsource;
 
 pub struct SSEClient {
