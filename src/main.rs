@@ -1,7 +1,7 @@
 extern crate actix_web;
 extern crate actix;
 extern crate tokio_timer;
-use actix_web::{http, server, middleware, App, HttpResponse, HttpRequest, HttpContext};
+use actix_web::{http, server, middleware, App, HttpResponse, HttpRequest, HttpContext, Responder};
 use actix_web::http::{StatusCode};
 use actix::prelude::*;
 
@@ -70,11 +70,20 @@ fn sse(req: &HttpRequest<SSEClientState>) -> HttpResponse {
 
     let r = HttpResponse::build(StatusCode::OK)
         .content_type("text/event-stream")
+        .content_encoding(http::header::ContentEncoding::Identity)
+        .no_chunking()
+        .force_close()
         .body(ctx);
 
     println!("sse: {:#?}", r.body());
     r
 }
+
+fn index(_req: &HttpRequest<SSEClientState>) -> impl Responder {
+    let body = include_str!("index.html");
+    HttpResponse::Ok().content_type("text/html").body(body)
+}
+
 
 fn new_app(addr: Addr<eventsource::EventSource>) -> App<SSEClientState> {
 
@@ -85,6 +94,7 @@ fn new_app(addr: Addr<eventsource::EventSource>) -> App<SSEClientState> {
     App::with_state(state)
         .middleware(middleware::Logger::default())
         .resource("/{topic}", |r| r.method(http::Method::GET).f(sse))
+        .resource("/", |r| r.method(http::Method::GET).f(index))
 }
 
 fn main() {
