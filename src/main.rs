@@ -9,7 +9,7 @@ extern crate env_logger;
 mod eventsource;
 
 pub struct SSEClient {
-    id: usize,
+    topic: String,
 }
 
 pub struct SSEClientState {
@@ -26,24 +26,23 @@ impl Actor for SSEClient {
 
         ctx.state().addr.send(eventsource::Connect {
             addr: addr.recipient(),
+            topic: self.topic.clone(),
         })
             .into_actor(self)
-            .then(|res, act, ctx| {
+            .then(|res, _act, ctx| {
                 match res {
-                    Ok(res) => act.id = res,
+                    Ok(_) => (),
                     // something is wrong with chat server
                     _ => ctx.stop(),
                 }
-                println!("my id {}", act.id);
                 actix::fut::ok(())
             })
             .wait(ctx);
     }
 
     fn stopping(&mut self, ctx: &mut Self::Context) -> Running {
-        println!("XXXXXXX Stopping {}", self.id);
         ctx.state().addr.send(eventsource::Disconnect {
-            id: self.id,
+            addr: ctx.address().recipient(),
         })
             .into_actor(self)
             .then(|_res, _act, _ctx| {
@@ -59,13 +58,15 @@ impl Handler<eventsource::SSEEvent> for SSEClient {
     type Result = ();
 
     fn handle(&mut self, msg: eventsource::SSEEvent, ctx: &mut HttpContext<Self, SSEClientState>) -> Self::Result {
-        println!("Message {} {:?}", self.id, msg);
-        ctx.write(format!("data: {}\n\n", msg.text));
+        println!("Message {:?}", msg);
+        if msg.topic == self.topic {
+            ctx.write(format!("data: {}\n\n", msg.text));
+        }
     }
 }
 
-fn sse(req: &HttpRequest<SSEClientState>) -> HttpResponse {
-    let me = SSEClient{ id : 0,};
+fn follow_topic(req: &HttpRequest<SSEClientState>) -> HttpResponse {
+    let me = SSEClient{ topic: req.match_info().get("topic").unwrap().to_string() };
     let ctx = HttpContext::create(req.clone(), me);
 
     let r = HttpResponse::build(StatusCode::OK)
@@ -84,7 +85,7 @@ fn new_app(addr: Addr<eventsource::EventSource>) -> App<SSEClientState> {
 
     App::with_state(state)
         .middleware(middleware::Logger::default())
-        .resource("/{topic}", |r| r.method(http::Method::GET).f(sse))
+        .resource("/{topic}", |r| r.method(http::Method::GET).f(follow_topic))
 }
 
 fn main() {

@@ -1,14 +1,13 @@
 extern crate actix;
 
 use actix::prelude::*;
-use std::collections::{HashMap};
+use std::collections::{HashMap, HashSet};
 use std::time::{Duration};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(1);
 
 pub struct EventSource {
-    sessions: HashMap<usize, Recipient<SSEEvent>>,
-    max_client_id: usize,
+    topics: HashMap<String, HashSet<Recipient<SSEEvent>>>,
     counter: usize,
 }
 
@@ -20,21 +19,20 @@ pub struct SSEEvent {
 }
 
 #[derive(Message)]
-#[rtype(usize)]
 pub struct Connect {
+    pub topic: String,
     pub addr: Recipient<SSEEvent>,
 }
 
 #[derive(Message)]
 pub struct Disconnect {
-    pub id: usize,
+    pub addr: Recipient<SSEEvent>,
 }
 
 impl Default for EventSource {
     fn default() -> EventSource {
         EventSource {
-            sessions: HashMap::new(),
-            max_client_id: 0,
+            topics: HashMap::new(),
             counter: 0,
         }
     }
@@ -50,18 +48,15 @@ impl Actor for EventSource {
 }
 
 impl Handler<Connect> for EventSource {
-    type Result = usize;
+    type Result = ();
 
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
         println!("Connect");
 
-        // register session with random id
-        self.max_client_id += 1;
-        let id = self.max_client_id;
-        self.sessions.insert(id, msg.addr);
-
-        // send id back
-        id
+        if !self.topics.contains_key(&msg.topic) {
+            self.topics.insert(msg.topic.clone(), HashSet::new());
+        }
+        self.topics.get_mut(&msg.topic).unwrap().insert(msg.addr);
     }
 }
 
@@ -69,8 +64,17 @@ impl Handler<Disconnect> for EventSource {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        println!("Disconnecting {}", msg.id);
-        self.sessions.remove(&msg.id);
+        let mut empty_topics = Vec::new();
+        for (topic, subscribers) in self.topics.iter_mut() {
+            subscribers.remove(&msg.addr);
+            if subscribers.is_empty() {
+                empty_topics.push(topic.clone());
+            }
+        }
+        for e in empty_topics {
+            self.topics.remove(&e);
+        }
+
     }
 }
 
@@ -84,18 +88,12 @@ impl EventSource {
 
     fn generate_data(&mut self) {
         println!("hb tick {}", self.counter);
-        self.counter += 1;
-        let mut dead_sessions = Vec::new();
-        for (id, addr) in self.sessions.iter_mut() {
-            println!("Sending to {}", id);
-            match addr.try_send(SSEEvent { topic: "foo".to_string(), text: format!("event {}", self.counter), }) {
-                Ok(_) => (),
-                Err(SendError::Closed(_)) => { dead_sessions.push(*id); () },
-                Err(_) => (),
+        for (topic, subs) in self.topics.iter() {
+            self.counter += 1;
+            println!("Sending on {}", topic);
+            for sub in subs {
+                sub.try_send(SSEEvent { topic: topic.clone(), text: format!("event {}", self.counter), });
             }
-        }
-        for id in dead_sessions {
-            self.sessions.remove(&id);
         }
     }
 }
