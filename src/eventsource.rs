@@ -25,6 +25,12 @@ pub struct Connect {
 }
 
 #[derive(Message)]
+pub struct Publish {
+    pub topic: String,
+    pub text: String,
+}
+
+#[derive(Message)]
 pub struct Disconnect {
     pub addr: Recipient<SSEEvent>,
 }
@@ -75,6 +81,21 @@ impl Handler<Disconnect> for EventSource {
             self.topics.remove(&e);
         }
 
+    }
+}
+
+impl Handler<Publish> for EventSource {
+    type Result = ();
+
+    fn handle(&mut self, msg: Publish, _: &mut Context<Self>) -> Self::Result {
+        match self.topics.get(&msg.topic) {
+            Some(subs) => {
+                for sub in subs {
+                    sub.try_send(SSEEvent { topic: msg.topic.clone(), text: msg.text.clone(), });
+                }
+            }
+            _ => (), // Key missing, nothing to do,
+        }
     }
 }
 

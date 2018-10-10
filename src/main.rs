@@ -1,7 +1,10 @@
 extern crate actix_web;
 extern crate actix;
 extern crate tokio_timer;
-use actix_web::{http, server, middleware, App, HttpResponse, HttpRequest, HttpContext};
+#[macro_use]
+extern crate serde_derive;
+
+use actix_web::{http, server, middleware, App, HttpResponse, HttpRequest, HttpContext, Form};
 use actix_web::http::{StatusCode};
 use actix::prelude::*;
 
@@ -77,6 +80,22 @@ fn follow_topic(req: &HttpRequest<SSEClientState>) -> HttpResponse {
     r
 }
 
+#[derive(Deserialize)]
+pub struct PostMessage {
+    text: String,
+}
+
+fn post_to_topic((req, params): (HttpRequest<SSEClientState>, Form<PostMessage>)) -> HttpResponse {
+    req.state().addr.do_send(eventsource::Publish {
+        topic: req.match_info().get("topic").unwrap().to_string(),
+        text: params.text.clone(),
+    });
+    let r = HttpResponse::build(StatusCode::OK)
+        .content_type("text/plain")
+        .body("posted");
+    r
+}
+
 fn new_app(addr: Addr<eventsource::EventSource>) -> App<SSEClientState> {
 
     let state = SSEClientState {
@@ -85,7 +104,10 @@ fn new_app(addr: Addr<eventsource::EventSource>) -> App<SSEClientState> {
 
     App::with_state(state)
         .middleware(middleware::Logger::default())
-        .resource("/{topic}", |r| r.method(http::Method::GET).f(follow_topic))
+        .resource("/{topic}", |r| {
+            r.method(http::Method::POST).with(post_to_topic);
+            r.method(http::Method::GET).f(follow_topic)
+        })
 }
 
 fn main() {
