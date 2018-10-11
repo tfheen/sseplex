@@ -4,7 +4,7 @@ extern crate tokio_timer;
 #[macro_use]
 extern crate serde_derive;
 
-use actix_web::{http, server, middleware, App, HttpResponse, HttpRequest, HttpContext, Form};
+use actix_web::{http, server, middleware, App, HttpResponse, HttpRequest, HttpContext, Form, Responder};
 use actix_web::http::{StatusCode};
 use actix::prelude::*;
 
@@ -74,10 +74,18 @@ fn follow_topic(req: &HttpRequest<SSEClientState>) -> HttpResponse {
 
     let r = HttpResponse::build(StatusCode::OK)
         .content_type("text/event-stream")
+        .content_encoding(http::header::ContentEncoding::Identity)
+        .no_chunking()
+        .force_close()
         .body(ctx);
 
     println!("sse: {:#?}", r.body());
     r
+}
+
+fn index(_req: &HttpRequest<SSEClientState>) -> impl Responder {
+    let body = include_str!("index.html");
+    HttpResponse::Ok().content_type("text/html").body(body)
 }
 
 #[derive(Deserialize)]
@@ -108,6 +116,7 @@ fn new_app(addr: Addr<eventsource::EventSource>) -> App<SSEClientState> {
             r.method(http::Method::POST).with(post_to_topic);
             r.method(http::Method::GET).f(follow_topic)
         })
+        .resource("/", |r| r.method(http::Method::GET).f(index))
 }
 
 fn main() {
