@@ -75,8 +75,6 @@ fn follow_topic(req: &HttpRequest<SSEClientState>) -> HttpResponse {
     let r = HttpResponse::build(StatusCode::OK)
         .content_type("text/event-stream")
         .content_encoding(http::header::ContentEncoding::Identity)
-        .no_chunking()
-        .force_close()
         .body(ctx);
 
     println!("sse: {:#?}", r.body());
