@@ -3,6 +3,8 @@ extern crate actix;
 extern crate tokio_timer;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
+extern crate log;
 
 use actix_web::{http, server, middleware, App, HttpResponse, HttpRequest, HttpContext, Form, Responder};
 use actix_web::http::{StatusCode};
@@ -24,7 +26,7 @@ impl Actor for SSEClient {
     type Context = HttpContext<Self, SSEClientState>;
 
     fn started(&mut self, ctx: &mut HttpContext<Self, SSEClientState>) {
-        println!("SSEClient started");
+        debug!("SSEClient started");
         let addr = ctx.address();
 
         ctx.state().addr.send(eventsource::Connect {
@@ -61,7 +63,7 @@ impl Handler<eventsource::SSEEvent> for SSEClient {
     type Result = ();
 
     fn handle(&mut self, msg: eventsource::SSEEvent, ctx: &mut HttpContext<Self, SSEClientState>) -> Self::Result {
-        println!("Message {:?}", msg);
+        debug!("Message {:?}", msg);
         if msg.topic == self.topic {
             ctx.write(format!("data: {}\n\n", msg.text));
         }
@@ -76,8 +78,6 @@ fn follow_topic(req: &HttpRequest<SSEClientState>) -> HttpResponse {
         .content_type("text/event-stream")
         .content_encoding(http::header::ContentEncoding::Identity)
         .body(ctx);
-
-    println!("sse: {:#?}", r.body());
     r
 }
 
@@ -103,7 +103,6 @@ fn post_to_topic((req, params): (HttpRequest<SSEClientState>, Form<PostMessage>)
 }
 
 fn new_app(url_prefix: &str, addr: Addr<eventsource::EventSource>) -> App<SSEClientState> {
-
     let state = SSEClientState {
         addr: addr,
     };
@@ -119,7 +118,7 @@ fn new_app(url_prefix: &str, addr: Addr<eventsource::EventSource>) -> App<SSECli
 }
 
 fn main() {
-    ::std::env::set_var("RUST_LOG", "actix_web=info");
+    ::std::env::set_var("RUST_LOG", "actix_web=info,sseplex=debug");
     env_logger::init();
 
     let url_prefix = match std::env::var_os("SSEPLEX_URL_PREFIX") {

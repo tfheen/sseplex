@@ -55,7 +55,7 @@ impl Handler<Connect> for EventSource {
     type Result = ();
 
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
-        println!("Connect");
+        info!("Client connecting");
 
         if !self.topics.contains_key(&msg.topic) {
             self.topics.insert(msg.topic.clone(), HashSet::new());
@@ -109,10 +109,10 @@ impl Handler<Publish> for EventSource {
 
 impl EventSource {
     fn generate_data(&mut self) {
-        println!("hb tick {}", self.counter);
+        debug!("Heartbeat tick {}", self.counter);
         for (topic, subs) in self.topics.iter() {
             self.counter += 1;
-            println!("Sending on {}", topic);
+            debug!("Sending on {}", topic);
             for sub in subs {
                 sub.try_send(SSEEvent { topic: topic.clone(), text: format!("event {}", self.counter), });
             }
