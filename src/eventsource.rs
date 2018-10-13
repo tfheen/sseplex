@@ -35,6 +35,9 @@ pub struct Disconnect {
     pub addr: Recipient<SSEEvent>,
 }
 
+#[derive(Message)]
+pub struct StartDummySender;
+
 impl Default for EventSource {
     fn default() -> EventSource {
         EventSource {
@@ -46,11 +49,6 @@ impl Default for EventSource {
 
 impl Actor for EventSource {
     type Context = Context<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        println!("Starting eventsource");
-        self.hb(ctx);
-    }
 }
 
 impl Handler<Connect> for EventSource {
@@ -84,6 +82,16 @@ impl Handler<Disconnect> for EventSource {
     }
 }
 
+impl Handler<StartDummySender> for EventSource {
+    type Result = ();
+
+    fn handle(&mut self, _msg: StartDummySender, ctx: &mut Context<Self>) {
+        ctx.run_interval(HEARTBEAT_INTERVAL, |act, _ctx| {
+            act.generate_data();
+        });
+    }
+}
+
 impl Handler<Publish> for EventSource {
     type Result = ();
 
@@ -100,13 +108,6 @@ impl Handler<Publish> for EventSource {
 }
 
 impl EventSource {
-    fn hb(&self, ctx: &mut Context<Self>) {
-        println!("hb");
-        ctx.run_interval(HEARTBEAT_INTERVAL, |act, _ctx| {
-            act.generate_data();
-        });
-    }
-
     fn generate_data(&mut self) {
         println!("hb tick {}", self.counter);
         for (topic, subs) in self.topics.iter() {

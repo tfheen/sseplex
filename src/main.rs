@@ -131,6 +131,10 @@ fn main() {
 
     let sender = Arbiter::start(|_| eventsource::EventSource::default());
 
+    if std::env::var("SSEPLEX_DUMMY_SENDER").is_ok() {
+        sender.do_send(eventsource::StartDummySender{})
+    }
+
     server::new(move || new_app(&url_prefix, sender.clone()))
         .bind("127.0.0.1:8080").unwrap()
         .run();
