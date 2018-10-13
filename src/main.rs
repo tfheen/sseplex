@@ -102,15 +102,16 @@ fn post_to_topic((req, params): (HttpRequest<SSEClientState>, Form<PostMessage>)
     r
 }
 
-fn new_app(addr: Addr<eventsource::EventSource>) -> App<SSEClientState> {
+fn new_app(url_prefix: &str, addr: Addr<eventsource::EventSource>) -> App<SSEClientState> {
 
     let state = SSEClientState {
         addr: addr,
     };
+    let prefix = format!("{}/{{topic}}", url_prefix);
 
     App::with_state(state)
         .middleware(middleware::Logger::default())
-        .resource("/{topic}", |r| {
+        .resource(&prefix, |r| {
             r.method(http::Method::POST).with(post_to_topic);
             r.method(http::Method::GET).f(follow_topic)
         })
@@ -120,11 +121,17 @@ fn new_app(addr: Addr<eventsource::EventSource>) -> App<SSEClientState> {
 fn main() {
     ::std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::init();
+
+    let url_prefix = match std::env::var_os("SSEPLEX_URL_PREFIX") {
+        Some(val) => val.to_str().unwrap().to_string(),
+        None => "".to_string(),
+    };
+
     let _sys = actix::System::new("sseplex");
 
     let sender = Arbiter::start(|_| eventsource::EventSource::default());
 
-    server::new(move || new_app(sender.clone()))
+    server::new(move || new_app(&url_prefix, sender.clone()))
         .bind("127.0.0.1:8080").unwrap()
         .run();
 }
