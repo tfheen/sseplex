@@ -14,15 +14,13 @@ struct Claims {
 }
 
 pub struct JWTAuthorizer<F>
-    where
-    F: FnMut(HttpRequest) -> &'static str
 {
     secret_func: F,
 }
 
 impl<F> JWTAuthorizer<F>
     where
-    F: FnMut(HttpRequest) -> &'static str
+    F: Fn(&str, &actix_web::http::Method) -> &'static str
 {
     pub fn new(f: F) -> Self {
         JWTAuthorizer {
@@ -33,17 +31,11 @@ impl<F> JWTAuthorizer<F>
 
 impl<S,F: 'static> Middleware<S> for JWTAuthorizer<F> 
     where
-    F: FnMut(HttpRequest) -> &'static str,
+    F: Fn(&str, &actix_web::http::Method) -> &'static str,
 {
     fn start(&self, req: &HttpRequest<S>) -> Result<Started> {
-        let sf = self.secret_func;
-        let secret = sf(*req);
-/*        let path = req.path();
-        let secret = match req.method() {
-            &actix_web::http::Method::GET => self.secret.to_string(),
-            &actix_web::http::Method::POST => self.secret.to_string() + &self.secret.to_string(),
-            _ => "".to_string(),
-        };*/
+        let sf = &self.secret_func;
+        let secret = sf(req.path(), req.method());
         info!("Secret {}", secret);
         let mut config = Config::default();
         config.realm("Restricted area");
@@ -51,12 +43,11 @@ impl<S,F: 'static> Middleware<S> for JWTAuthorizer<F>
         // sub == topic
         let validation = Validation {sub: Some("sseplex".into()), ..Default::default()};
 
-        let token_data = match decode::<Claims>(auth.token(), secret.as_ref(), &validation) {
-            Ok(c) => c,
-            _ => return Err(AuthenticationError::from(config)
-                            .with_error(Error::InvalidToken)
-                            .into()),
-        };
-        Ok(Started::Done)
+        match decode::<Claims>(auth.token(), secret.as_ref(), &validation) {
+            Ok(_) => Ok(Started::Done),
+            _ => Err(AuthenticationError::from(config)
+                     .with_error(Error::InvalidToken)
+                     .into()),
+        }
     }
 }
