@@ -1,8 +1,8 @@
 extern crate jsonwebtoken as jwt;
 
 use self::jwt::{decode, Validation};
-use actix_web::FromRequest;
-use actix_web;
+use actix_web::{Result, HttpRequest, FromRequest};
+use actix_web::middleware::{Middleware, Started};
 use actix_web_httpauth::extractors::AuthenticationError;
 use actix_web_httpauth::extractors::bearer::{BearerAuth, Config, Error};
 
@@ -13,37 +13,37 @@ struct Claims {
     sub: String,
 }
 
-use actix_web::{Result, HttpRequest};
-use actix_web::middleware::{Middleware, Started};
-
-pub struct JWTAuthorizer<T> 
-    where T: FnOnce(&HttpRequest) -> &str
+pub struct JWTAuthorizer<F>
+    where
+    F: FnMut(HttpRequest) -> &'static str
 {
-    secret: String,
-    secret_generating_function: T,
+    secret_func: F,
 }
 
-impl<T: 'static> JWTAuthorizer<T>
-    where T: FnOnce(&HttpRequest) -> &str
+impl<F> JWTAuthorizer<F>
+    where
+    F: FnMut(HttpRequest) -> &'static str
 {
-    pub fn new(secret: String, f: T) -> Self {
+    pub fn new(f: F) -> Self {
         JWTAuthorizer {
-            secret: secret,
-            secret_generating_function: f,
+            secret_func: f,
         }
     }
 }
 
-impl<S,T: 'static> Middleware<S> for JWTAuthorizer<T>
-    where T: Fn(&HttpRequest) -> &str
+impl<S,F: 'static> Middleware<S> for JWTAuthorizer<F> 
+    where
+    F: FnMut(HttpRequest) -> &'static str,
 {
     fn start(&self, req: &HttpRequest<S>) -> Result<Started> {
-        let path = req.path();
+        let sf = self.secret_func;
+        let secret = sf(*req);
+/*        let path = req.path();
         let secret = match req.method() {
             &actix_web::http::Method::GET => self.secret.to_string(),
             &actix_web::http::Method::POST => self.secret.to_string() + &self.secret.to_string(),
             _ => "".to_string(),
-        };
+        };*/
         info!("Secret {}", secret);
         let mut config = Config::default();
         config.realm("Restricted area");

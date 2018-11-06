@@ -5,6 +5,7 @@ extern crate tokio_timer;
 extern crate serde_derive;
 #[macro_use]
 extern crate log;
+extern crate actix_web_httpauth;
 
 use actix_web::{http, server, middleware, App, HttpResponse, HttpRequest, HttpContext, Form, Responder};
 use actix_web::http::{StatusCode};
@@ -12,6 +13,7 @@ use actix::prelude::*;
 
 extern crate env_logger;
 mod eventsource;
+mod auth;
 
 pub struct SSEClient {
     topic: String,
@@ -110,6 +112,13 @@ fn new_app(url_prefix: &str, addr: Addr<eventsource::EventSource>) -> App<SSECli
 
     App::with_state(state)
         .middleware(middleware::Logger::default())
+        .middleware(auth::JWTAuthorizer::new(|req| {
+            match req.method() {
+                &actix_web::http::Method::GET => "foo",
+                &actix_web::http::Method::POST => "foofoo",
+                _ => "",
+            }
+        }))
         .resource(&prefix, |r| {
             r.method(http::Method::POST).with(post_to_topic);
             r.method(http::Method::GET).f(follow_topic)
