@@ -112,11 +112,11 @@ fn new_app(url_prefix: &str, addr: Addr<eventsource::EventSource>) -> App<SSECli
 
     App::with_state(state)
         .middleware(middleware::Logger::default())
-        .middleware(auth::JWTAuthorizer::new(|_path, method| {
-            match method {
-                &actix_web::http::Method::GET => "foo",
-                &actix_web::http::Method::POST => "foofoo",
-                _ => "",
+        .middleware(auth::JWTAuthorizer::new(|req| {
+            match req.method() {
+                &actix_web::http::Method::GET => ("foo", "sseplex"),
+                &actix_web::http::Method::POST => ("foofoo", "sseplexx"),
+                _ => ("","")
             }
         }))
         .resource(&prefix, |r| {
