@@ -104,6 +104,19 @@ fn post_to_topic((req, params): (HttpRequest<SSEClientState>, Form<PostMessage>)
     r
 }
 
+
+fn get_secret_env(method: &str, prefix: &str) -> Result<String, ()> {
+    match std::env::var(format!("SSEPLEX_AUTH_JWT_SECRET_{}_{}", method, prefix)) {
+        Ok(val) => Ok(val),
+        Err(_) => match std::env::var(format!("SSEPLEX_AUTH_JWT_SECRET_{}", method)) {
+            Ok(val) => Ok(val),
+            Err(e) => { println!("couldn't interpret: {}", e);
+                        Err(()) }
+        }
+    }
+}
+
+
 fn new_app(url_prefix: &str, addr: Addr<eventsource::EventSource>) -> App<SSEClientState> {
     let state = SSEClientState {
         addr: addr,
@@ -113,6 +126,7 @@ fn new_app(url_prefix: &str, addr: Addr<eventsource::EventSource>) -> App<SSECli
     App::with_state(state)
         .middleware(middleware::Logger::default())
         .middleware(auth::JWTAuthorizer::new(|req| {
+            // (secret, sub)
             match req.method() {
                 &actix_web::http::Method::GET => ("foo", "sseplex"),
                 &actix_web::http::Method::POST => ("foofoo", "sseplexx"),
